@@ -1,0 +1,88 @@
+Assignment 4: Implement GRU and Bi-GRU networks for hand writing recognition problem. 
+Evaluate the networks using standard metrics. Compare and contrast with question 3 models too.  
+
+
+
+CODE: 
+import os 
+import time 
+import numpy as np 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2' # Keep terminal clean 
+import tensorflow as tf 
+from tensorflow.keras import layers, models 
+from tensorflow.keras.datasets import mnist 
+from sklearn.metrics import precision_score, recall_score, f1_score 
+ 
+def evaluate_model(model, X_test, y_test, model_name): 
+    """Generates standard evaluation metrics for the given model.""" 
+    predictions = model.predict(X_test, verbose=0) 
+    y_pred = np.argmax(predictions, axis=1) 
+     
+    acc = np.mean(y_pred == y_test) 
+    prec = precision_score(y_test, y_pred, average='macro') 
+    rec = recall_score(y_test, y_pred, average='macro') 
+    f1 = f1_score(y_test, y_pred, average='macro') 
+     
+    print(f"--- {model_name} Performance ---") 
+    print(f"Accuracy:  {acc:.4f}") 
+    print(f"Precision: {prec:.4f}") 
+    print(f"Recall:    {rec:.4f}") 
+    print(f"F1-Score:  {f1:.4f}\n") 
+    return acc 
+ 
+def run_gru_experiment(): 
+    print("="*75) 
+    print(" HANDWRITING RECOGNITION: GRU vs. Bi-GRU") 
+    print("="*75) 
+ 
+    # 1. Load and Prepare MNIST Dataset 
+    print("\n[1] Loading MNIST Dataset...") 
+    (X_train, y_train), (X_test, y_test) = mnist.load_data() 
+    X_train = X_train.astype('float32') / 255.0 
+    X_test = X_test.astype('float32') / 255.0 
+    input_shape = (28, 28) 
+ 
+    # 2. Build and Train Standard GRU 
+    print("\n[2] Building and Training Standard GRU...") 
+    gru_model = models.Sequential([ 
+        layers.Input(shape=input_shape), 
+        layers.GRU(128), # Using GRU instead of LSTM 
+        layers.Dense(10, activation='softmax') 
+    ]) 
+     
+    gru_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', 
+metrics=['accuracy']) 
+     
+    start_time = time.time() 
+    gru_model.fit(X_train, y_train, epochs=3, batch_size=64, validation_split=0.1, 
+verbose=1) 
+    gru_time = time.time() - start_time 
+ 
+    # 3. Build and Train Bidirectional GRU (Bi-GRU) 
+    print("\n[3] Building and Training Bidirectional GRU (Bi-GRU)...") 
+    bigru_model = models.Sequential([ 
+        layers.Input(shape=input_shape), 
+        layers.Bidirectional(layers.GRU(128)),  
+        layers.Dense(10, activation='softmax') 
+    ]) 
+     
+    bigru_model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', 
+metrics=['accuracy']) 
+     
+    start_time = time.time() 
+    bigru_model.fit(X_train, y_train, epochs=3, batch_size=64, validation_split=0.1, 
+verbose=1) 
+    bigru_time = time.time() - start_time 
+ 
+    # 4. Evaluation and Comparison 
+print("\n" + "="*75) 
+print(" EVALUATION MATRICES & TIMING") 
+print("="*75) 
+evaluate_model(gru_model, X_test, y_test, "Standard GRU") 
+evaluate_model(bigru_model, X_test, y_test, "Bidirectional GRU") 
+print("--- Training Time Comparison (3 Epochs) ---") 
+print(f"Standard GRU Time: {gru_time:.2f} seconds") 
+print(f"Bi-GRU Time:       
+{bigru_time:.2f} seconds") 
+if __name__ == "__main__": 
+run_gru_experiment()
