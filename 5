@@ -1,0 +1,129 @@
+Implement and compare three pre-trained network for image classification using a suitable publicly available dataset(i.e. Movie Image dataset). Evaluate the networks using standard metrics.
+
+ENVIOURMENT: Install python 3.12 (make sure to click copy to path while installation)
+in terminal: 
+
+1.(aml is the foler name, so name your folder aml)
+
+python3.12 -m venv aml_env        
+source aml_env/bin/activate
+
+pip install numpy scikit-learn tensorflow
+
+2.File is named second.py so run: python second.py 
+
+3. if it shows errors, do this:
+pip uninstall tensorflow numpy -y
+pip install "numpy<2.0"
+pip install tensorflow
+
+CODE:
+import os
+import time
+import numpy as np
+
+# Suppress TensorFlow logging
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+import tensorflow as tf
+from tensorflow.keras.applications import VGG16, ResNet50, MobileNetV2
+from tensorflow.keras import layers, models
+from tensorflow.keras.datasets import cifar10
+from sklearn.metrics import precision_score, recall_score, f1_score
+
+def load_dataset():
+    """Loads the image dataset. Currently using CIFAR-10 so the script runs out-of-the-box."""
+    print("\n[1] Loading Public Image Dataset...")
+    
+    # TO USE YOUR MOVIE DATASET, COMMENT OUT THE CIFAR-10 LINES BELOW AND UNCOMMENT
+    # THE `image_dataset_from_directory` LINES, POINTING TO YOUR FOLDER PATH.
+    (X_train, y_train), (X_test, y_test) = cifar10.load_data()
+    
+    # Using a subset of data (10,000 images) to make training fast for the assignment
+    X_train, y_train = X_train[:10000], y_train[:10000]
+    X_test, y_test = X_test[:2000], y_test[:2000]
+    
+    # movie_train = tf.keras.utils.image_dataset_from_directory('path/to/movie_dataset/train')
+    # movie_test = tf.keras.utils.image_dataset_from_directory('path/to/movie_dataset/test')
+    
+    return X_train, y_train, X_test, y_test
+
+def build_pretrained_model(base_model_class, model_name, input_shape=(32,32,3), num_classes=10):
+    """Builds a transfer learning model by attaching a new classification head."""
+    inputs = layers.Input(shape=input_shape)
+    
+    # Pre-trained models expect larger images (usually 224x224).
+    # We upscale the 32x32 images to 96x96 (the minimum for MobileNetV2) inside the model.
+    x = layers.Resizing(96, 96)(inputs)
+    
+    # Load the pre-trained network without its original classification head
+    # weights='imagenet' means it loads the knowledge learned from millions of images
+    base_model = base_model_class(weights='imagenet', include_top=False, input_shape=(96,96,3))
+    
+    # FREEZE the base model so we don't destroy the pre-trained weights during our training
+    base_model.trainable = False
+    
+    x = base_model(x, training=False)
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dense(128, activation='relu')(x)
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
+    
+    model = models.Model(inputs, outputs, name=model_name)
+    model.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
+    
+    return model
+
+def evaluate_and_time_model(model, X_train, y_train, X_test, y_test, epochs=3):
+    """Trains the model, times it, and generates evaluation metrics."""
+    print(f"\n--- Training {model.name} ---")
+    start_time = time.time()
+    
+    # Train only the new Dense layers we added on top
+    model.fit(X_train, y_train, epochs=epochs, batch_size=64, validation_split=0.1, verbose=1)
+    
+    training_time = time.time() - start_time
+    
+    print(f"\nEvaluating {model.name}...")
+    predictions = model.predict(X_test, verbose=0)
+    y_pred = np.argmax(predictions, axis=1)
+    
+    acc = np.mean(y_pred == y_test.flatten())
+    prec = precision_score(y_test, y_pred, average='macro', zero_division=0)
+    rec = recall_score(y_test, y_pred, average='macro', zero_division=0)
+    f1 = f1_score(y_test, y_pred, average='macro', zero_division=0)
+    
+    return {"Time": training_time, "Accuracy": acc, "Precision": prec, "Recall": rec, "F1": f1}
+
+def run_comparative_analysis():
+    print("="*80)
+    print(" PRE-TRAINED NETWORK COMPARISON: VGG16 vs ResNet50 vs MobileNetV2")
+    print("="*80)
+    
+    X_train, y_train, X_test, y_test = load_dataset()
+    
+    # Define the three architectures to compare
+    architectures = [
+        (VGG16, "VGG16"),
+        (ResNet50, "ResNet50"),
+        (MobileNetV2, "MobileNetV2")
+    ]
+    
+    results = {}
+    
+    for base_class, name in architectures:
+        model = build_pretrained_model(base_class, name)
+        metrics = evaluate_and_time_model(model, X_train, y_train, X_test, y_test)
+        results[name] = metrics
+        
+    # Print Final Comparison Table
+    print("\n" + "="*80)
+    print(" FINAL EVALUATION MATRICES & COMPARISON")
+    print("="*80)
+    print(f"{'Model':<15} | {'Time (s)':<10} | {'Accuracy':<10} | {'Precision':<10} | {'Recall':<10} | {'F1-Score':<10}")
+    print("-" * 80)
+    
+    for name, m in results.items():
+        print(f"{name:<15} | {m['Time']:<10.2f} | {m['Accuracy']:<10.4f} | {m['Precision']:<10.4f} | {m['Recall']:<10.4f} | {m['F1']:<10.4f}")
+
+if __name__ == "__main__":
+    run_comparative_analysis()
