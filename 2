@@ -1,0 +1,94 @@
+Assignment 2: Implement and test the working convolutional neural network. Use image 
+data set of your choice.  
+ 
+CODE: 
+ import os 
+import numpy as np 
+# Suppress TensorFlow logging to keep your terminal output clean for the screenshot 
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'  
+import tensorflow as tf 
+from tensorflow.keras import layers, models 
+from tensorflow.keras.datasets import fashion_mnist 
+ 
+def build_and_test_cnn(): 
+    print("="*65) 
+    print(" CONVOLUTIONAL NEURAL NETWORK (CNN) IMPLEMENTATION & 
+TESTING") 
+    print("="*65) 
+ 
+    # 1. Load and Prepare the Dataset 
+    print("\n[1] Loading Fashion MNIST Dataset...") 
+    (train_images, train_labels), (test_images, test_labels) = fashion_mnist.load_data() 
+ 
+    # Class names for Fashion MNIST 
+    class_names = ['T-shirt/top', 'Trouser', 'Pullover', 'Dress', 'Coat', 
+                   'Sandal', 'Shirt', 'Sneaker', 'Bag', 'Ankle boot'] 
+ 
+    # Reshape images to include the channel dimension (28, 28, 1) and normalize pixel 
+values to 0-1 
+    train_images = train_images.reshape((60000, 28, 28, 1)).astype('float32') / 255 
+    test_images = test_images.reshape((10000, 28, 28, 1)).astype('float32') / 255 
+ 
+    print(f"Training data shape: {train_images.shape}") 
+    print(f"Testing data shape:  {test_images.shape}") 
+ 
+    # 2. Build the CNN Architecture 
+    print("\n[2] Building the CNN Architecture...") 
+    model = models.Sequential([ 
+        # First Convolutional Block 
+        layers.Conv2D(32, (3, 3), activation='relu', input_shape=(28, 28, 1)), 
+        layers.MaxPooling2D((2, 2)), 
+         
+        # Second Convolutional Block 
+        layers.Conv2D(64, (3, 3), activation='relu'), 
+        layers.MaxPooling2D((2, 2)), 
+         
+        # Third Convolutional Block 
+        layers.Conv2D(64, (3, 3), activation='relu'), 
+         
+        # Flattening and Dense Layers for Classification 
+        layers.Flatten(), 
+        layers.Dense(64, activation='relu'), 
+        layers.Dense(10, activation='softmax') # 10 output classes 
+    ]) 
+ 
+    # Compile the model 
+    model.compile(optimizer='adam', 
+                  loss='sparse_categorical_crossentropy', 
+                  metrics=['accuracy']) 
+     
+    # Print a quick summary of the model (optional, but looks great in reports) 
+    # model.summary() 
+ 
+    # 3. Train the Model 
+    print("\n[3] Training the CNN (Running for 3 Epochs for speed)...") 
+    model.fit(train_images, train_labels, epochs=3, batch_size=64, validation_split=0.1) 
+ 
+    # 4. Evaluate on Test Data 
+    print("\n[4] Evaluating Model on Unseen Test Data...") 
+    test_loss, test_acc = model.evaluate(test_images,  test_labels, verbose=2) 
+    print(f"\nFinal Test Accuracy: {test_acc*100:.2f}%") 
+ 
+    # 5. Test the Working CNN with specific predictions 
+    print("\n" + "="*65) 
+    print(" LIVE PREDICTION TESTS") 
+    print("="*65) 
+     
+    # Make predictions on the first 5 test images 
+    predictions = model.predict(test_images[:5]) 
+     
+    for i in range(5): 
+        predicted_label = np.argmax(predictions[i]) 
+        actual_label = test_labels[i] 
+         
+        pred_name = class_names[predicted_label] 
+        actual_name = class_names[actual_label] 
+         
+        # Check if the CNN got it right 
+        status = "PASS" if predicted_label == actual_label else "FAIL" 
+         
+        print(f"Image {i+1} -> Model Predicted: {pred_name:<12} | Actual: 
+{actual_name:<12} | {status}") 
+ 
+if __name__ == "__main__": 
+    build_and_test_cnn()
