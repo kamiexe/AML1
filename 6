@@ -1,0 +1,149 @@
+Implement and compare three pre-trained deep learning models for image classification using a suitable publicly available dataset (atleast 3 publicly available movie image dataset).
+Apply transfer learning by fine-tuning the models and evaluate their performance using standard metrics such as accuracy, precision, recall, F1-score, and confusion matrix.
+
+
+ENVIOURMENT: Install python 3.12 (make sure to click copy to path while installation)
+in terminal: 
+
+1.(aml is the foler name, so name your folder aml)
+
+python3.12 -m venv aml_env        
+source aml_env/bin/activate
+
+pip install numpy scikit-learn tensorflow
+
+2.File is named second.py so run: python second.py 
+
+3. if it shows errors, do this:
+pip uninstall tensorflow numpy -y
+pip install "numpy<2.0"
+pip install tensorflow
+
+CODE:
+
+import os
+import time
+import numpy as np
+
+# Keep terminal clean
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+
+import tensorflow as tf
+from tensorflow.keras.applications import VGG16, ResNet50, MobileNetV2
+from tensorflow.keras import layers, models
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
+
+def load_movie_datasets():
+    """
+    Loads your merged movie image dataset.
+    Currently using synthetic data tensors so the script runs out-of-the-box.
+    """
+    print("\n[1] Loading Merged Movie Image Datasets...")
+    
+    # TO USE YOUR ACTUAL MOVIE DATASET: 
+    # 1. Replace 'path/to/merged_movie_dataset' with your actual folder path
+    # 2. Uncomment the 3 lines below
+    # 3. Comment out the synthetic data generation block below
+    
+    # dataset_path = 'path/to/merged_movie_dataset'
+    # train_ds = tf.keras.utils.image_dataset_from_directory(f"{dataset_path}/train", image_size=(128, 128), batch_size=32)
+    # test_ds = tf.keras.utils.image_dataset_from_directory(f"{dataset_path}/test", image_size=(128, 128), batch_size=32)
+    # return train_ds, test_ds
+
+    # --- SYNTHETIC DATA GENERATION (For testing script structure) ---
+    X_train = np.random.rand(1000, 128, 128, 3).astype('float32')
+    y_train = np.random.randint(0, 3, 1000) # Assuming 3 movie genres
+    X_test = np.random.rand(200, 128, 128, 3).astype('float32')
+    y_test = np.random.randint(0, 3, 200)
+
+    return X_train, y_train, X_test, y_test
+
+def build_finetuned_model(base_model_class, model_name, input_shape=(128, 128, 3), num_classes=3):
+    """Builds a model and applies FINE-TUNING by unfreezing the top layers."""
+    inputs = layers.Input(shape=input_shape)
+    
+    # Load base model without top classification layer
+    base_model = base_model_class(weights='imagenet', include_top=False, input_tensor=inputs)
+    
+    # --- TRANSFER LEARNING: FINE TUNING LOGIC ---
+    # 1. Freeze the entire base model first
+    base_model.trainable = False
+    
+    # 2. Unfreeze the last few layers to 'fine-tune' them to our specific movie dataset
+    base_model.trainable = True
+    fine_tune_at = len(base_model.layers) - 10 # Unfreeze the top 10 layers
+    
+    # Re-freeze all layers BEFORE the fine_tune_at layer
+    for layer in base_model.layers[:fine_tune_at]:
+        layer.trainable = False
+        
+    x = base_model.output
+    x = layers.GlobalAveragePooling2D()(x)
+    x = layers.Dropout(0.3)(x) # Dropout to prevent overfitting on complex movie images
+    x = layers.Dense(128, activation='relu')(x)
+    outputs = layers.Dense(num_classes, activation='softmax')(x)
+    
+    model = models.Model(inputs, outputs, name=model_name)
+    
+    # Use a very low learning rate for fine-tuning so we don't wreck the pre-trained weights
+    model.compile(optimizer=tf.keras.optimizers.Adam(1e-5),
+                  loss='sparse_categorical_crossentropy',
+                  metrics=['accuracy'])
+                  
+    return model
+
+def evaluate_and_matrix(model, X_train, y_train, X_test, y_test, epochs=3):
+    """Trains the model and generates all standard metrics including Confusion Matrix."""
+    print(f"\n--- Fine-Tuning {model.name} ---")
+    start_time = time.time()
+    
+    model.fit(X_train, y_train, epochs=epochs, batch_size=32, validation_split=0.1, verbose=1)
+    training_time = time.time() - start_time
+    
+    print(f"\nEvaluating {model.name}...")
+    predictions = model.predict(X_test, verbose=0)
+    y_pred = np.argmax(predictions, axis=1)
+    
+    acc = np.mean(y_pred == y_test)
+    prec = precision_score(y_test, y_pred, average='weighted', zero_division=0)
+    rec = recall_score(y_test, y_pred, average='weighted', zero_division=0)
+    f1 = f1_score(y_test, y_pred, average='weighted', zero_division=0)
+    conf_matrix = confusion_matrix(y_test, y_pred)
+    
+    # Print Confusion Matrix directly to terminal
+    print(f"Confusion Matrix for {model.name}:")
+    print(conf_matrix)
+    
+    return {"Time": training_time, "Accuracy": acc, "Precision": prec, "Recall": rec, "F1": f1, "CM": conf_matrix}
+
+def run_fine_tuning_analysis():
+    print("="*85)
+    print(" MOVIE DATASET FINE-TUNING: VGG16 vs ResNet50 vs MobileNetV2")
+    print("="*85)
+    
+    X_train, y_train, X_test, y_test = load_movie_datasets()
+    
+    architectures = [
+        (VGG16, "VGG16"),
+        (ResNet50, "ResNet50"),
+        (MobileNetV2, "MobileNetV2")
+    ]
+    
+    results = {}
+    
+    for base_class, name in architectures:
+        model = build_finetuned_model(base_class, name)
+        metrics = evaluate_and_matrix(model, X_train, y_train, X_test, y_test)
+        results[name] = metrics
+        
+    print("\n" + "="*85)
+    print(" FINAL EVALUATION MATRICES & COMPARISON")
+    print("="*85)
+    print(f"{'Model':<15} | {'Time (s)':<10} | {'Accuracy':<10} | {'Precision':<10} | {'Recall':<10} | {'F1-Score':<10}")
+    print("-" * 85)
+    
+    for name, m in results.items():
+        print(f"{name:<15} | {m['Time']:<10.2f} | {m['Accuracy']:<10.4f} | {m['Precision']:<10.4f} | {m['Recall']:<10.4f} | {m['F1']:<10.4f}")
+
+if __name__ == "__main__":
+    run_fine_tuning_analysis()
